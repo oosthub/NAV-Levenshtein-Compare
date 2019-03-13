@@ -1,0 +1,161 @@
+OBJECT Codeunit 50105 Levenshtein Compare
+{
+  OBJECT-PROPERTIES
+  {
+    Date=13/03/19;
+    Time=02:44:03 PM;
+    Modified=Yes;
+    Version List=;
+  }
+  PROPERTIES
+  {
+    OnRun=VAR
+            Vendor@1000 : Record 23;
+          BEGIN
+            //Sample Code to use Levisthine Check Similarities Code
+            {
+            Vendor.RESET;
+            IF Vendor.FINDSET THEN
+            REPEAT
+              IF CheckSimilarities('My New Vendor Name',Vendor.Name) > 50 THEN
+                Vendor.MARK(TRUE);
+            UNTIL Vendor.NEXT = 0;
+            Vendor.MARKEDONLY(TRUE);
+            PAGE.RUNMODAL(0,Vendor);
+            }
+          END;
+
+  }
+  CODE
+  {
+
+    PROCEDURE CheckSimilarities@2(Source@1001 : Text;Target@1010 : Text) : Decimal;
+    VAR
+      weighting@1002 : Decimal;
+      singleWordWeighting@1009 : Decimal;
+      String1@1003 : Text;
+      String2@1004 : Text;
+      wordString@1005 : Text;
+      compareWord@1006 : Text;
+      done@1007 : Boolean;
+      last@1008 : Boolean;
+    BEGIN
+      String1 := LOWERCASE(Target);
+      String2 := LOWERCASE(Source);
+      wordString := String1;
+      weighting := CalcSimilarities(String1,String2) * 100;
+      done := FALSE;
+      last := FALSE;
+      IF (weighting > 50) THEN
+      BEGIN
+        EXIT(weighting);
+      END ELSE
+        REPEAT
+          IF STRPOS(wordString,' ') > 0 THEN
+          BEGIN
+            compareWord := COPYSTR(wordString,1,STRPOS(wordString,' ') - 1);
+            wordString := DELSTR(wordString,1,STRPOS(wordString,' '));
+          END ELSE BEGIN
+            compareWord := wordString;
+            wordString := '';
+          END;
+          singleWordWeighting := CalcSimilarities(wordString, String2) * 100;
+          IF singleWordWeighting > 90 THEN
+            EXIT(singleWordWeighting);
+        UNTIL (wordString = '');
+      EXIT(0);
+    END;
+
+    LOCAL PROCEDURE CalcSimilarities@3(VAR Source@1001 : Text;VAR Target@1000 : Text) : Decimal;
+    VAR
+      stepsToSame@1002 : Integer;
+      sourceWordCount@1004 : Integer;
+      targetWordCount@1003 : Integer;
+      MaxVal@1005 : Integer;
+    BEGIN
+      IF (Source = '') OR (Target = '') THEN
+        EXIT(0.0);
+
+      IF (Source = Target) THEN
+        EXIT(1.0);
+
+
+      sourceWordCount := STRLEN(Source);
+      targetWordCount := STRLEN(Target);
+      IF sourceWordCount > targetWordCount THEN
+        MaxVal := sourceWordCount
+      ELSE
+        MaxVal := targetWordCount;
+
+      stepsToSame := ComputeLevDistance(Source, Target);
+      EXIT (1.0 - (stepsToSame / MaxVal));
+    END;
+
+    LOCAL PROCEDURE ComputeLevDistance@1(VAR Source@1000 : Text;VAR Target@1001 : Text) : Integer;
+    VAR
+      sourceWordCount@1006 : Integer;
+      targetWordCount@1005 : Integer;
+      i@1004 : Integer;
+      j@1003 : Integer;
+      distance@1002 : ARRAY [51,51] OF Integer;
+      cost@1007 : Integer;
+      minVal@1008 : Integer;
+    BEGIN
+      // Compute Levenshtein Distance
+      IF (Source = '') OR (Target = '') THEN
+        EXIT(0);
+
+      sourceWordCount := STRLEN(Source);
+      targetWordCount := STRLEN(Target);
+
+      IF Source = Target THEN
+        EXIT(sourceWordCount);
+
+
+      // Step 1
+      IF (sourceWordCount = 0) THEN
+            EXIT(targetWordCount);
+
+      IF (targetWordCount = 0) THEN
+            EXIT(sourceWordCount);
+
+      FOR i := 1 TO 51 DO
+        FOR j := 1 TO 51 DO
+          distance[i,j] := 0;
+
+      // Step 2
+      FOR i := 1 TO sourceWordCount DO
+       distance[i, 1] := i;
+
+
+      FOR j := 1 TO targetWordCount DO
+        distance[1, j] := j;
+
+      FOR i := 2 TO sourceWordCount DO
+        FOR j := 2 TO targetWordCount DO
+        BEGIN
+          // Step 3
+          IF (Target[j - 1] = Source[i - 1]) THEN
+            cost := 0
+          ELSE
+            cost := 1;
+          // Step 4
+          IF distance[i - 1, j] + 1 > distance[i, j - 1] + 1 THEN
+            minVal := distance[i, j - 1] + 1
+          ELSE
+            minVal := distance[i - 1, j] + 1;
+
+          IF distance[i - 1, j - 1] + cost > minVal THEN
+            distance[i, j] := minVal
+          ELSE
+            distance[i, j] := distance[i - 1, j - 1] + cost;
+        END;
+
+      EXIT (distance[sourceWordCount, targetWordCount]);
+    END;
+
+    BEGIN
+    END.
+  }
+}
+
